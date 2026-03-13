@@ -1,0 +1,47 @@
+services:
+  postgres:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: sdr_agents
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - sdr_net
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    restart: always
+    networks:
+      - sdr_net
+
+  consumer:
+    build: .
+    command: python -m src.agent.consumer
+    restart: always
+    env_file: .env
+    depends_on:
+      - postgres
+      - rabbitmq
+    networks:
+      - sdr_net
+
+  worker_disparo:
+    build: .
+    command: python -m src.agent.disparo.worker
+    restart: always
+    env_file: .env
+    depends_on:
+      - postgres
+      - rabbitmq
+    networks:
+      - sdr_net
+
+volumes:
+  postgres_data:
+
+networks:
+  sdr_net:
+    driver: bridge
