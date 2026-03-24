@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from datetime import UTC, datetime
 from typing import Any
+from urllib.parse import quote
 
 import requests
 from psycopg.rows import dict_row
@@ -69,6 +70,14 @@ def _rabbitmq_auth() -> tuple[str, str]:
 
 def _rabbitmq_base() -> str:
     return os.getenv("RABBITMQ_MGMT_URL", "http://rabbitmq_rabbitmq:15672").rstrip("/")
+
+
+def _rabbitmq_vhost_encoded() -> str:
+    """Return URL-encoded RabbitMQ vhost for management API routes."""
+    vhost = os.getenv("RABBITMQ_MGMT_VHOST", "/")
+    if not vhost:
+        vhost = "/"
+    return quote(vhost, safe="")
 
 
 def _safe_request(url: str, headers: dict[str, str] | None = None, auth: tuple[str, str] | None = None) -> Any:
@@ -143,7 +152,8 @@ def get_quality() -> dict[str, Any]:
 
 def _queue_snapshot(queue_name: str) -> dict[str, Any]:
     base = _rabbitmq_base()
-    url = f"{base}/api/queues/%2F/{queue_name}"
+    vhost = _rabbitmq_vhost_encoded()
+    url = f"{base}/api/queues/{vhost}/{queue_name}"
     data = _safe_request(url, auth=_rabbitmq_auth())
     if not isinstance(data, dict):
         raise ValueError("Resposta invalida")

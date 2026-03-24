@@ -21,6 +21,7 @@ services:
       - RABBITMQ_MGMT_URL=http://rabbitmq_rabbitmq:15672
       - RABBITMQ_MGMT_USER=guest
       - RABBITMQ_MGMT_PASS=guest
+      - RABBITMQ_MGMT_VHOST=/
 
       - CHATWOOT_URL=http://chatwoot_api:3000
       - CHATWOOT_API_TOKEN=

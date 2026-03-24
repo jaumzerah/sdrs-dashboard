@@ -171,7 +171,11 @@ function renderQueueMobileCards(rows) {
     });
 
     card.appendChild(grid);
-    card.appendChild(buildStatusPill(!row.error, row.error ? 'erro' : row.state));
+    const mobilePill = buildStatusPill(!row.error, row.error ? 'erro' : row.state);
+    if (row.error) {
+      mobilePill.title = String(row.error);
+    }
+    card.appendChild(mobilePill);
     elements.queuesMobileCards.appendChild(card);
   });
 }
@@ -199,7 +203,11 @@ async function loadQueues() {
     });
 
     const statusTd = document.createElement('td');
-    statusTd.appendChild(buildStatusPill(!hasError, hasError ? 'erro' : row.state));
+    const tablePill = buildStatusPill(!hasError, hasError ? 'erro' : row.state);
+    if (hasError && row.error) {
+      tablePill.title = String(row.error);
+    }
+    statusTd.appendChild(tablePill);
     tr.appendChild(statusTd);
     elements.queuesTable.appendChild(tr);
   });
