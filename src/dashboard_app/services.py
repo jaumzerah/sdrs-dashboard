@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from datetime import UTC, datetime
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 import requests
 from psycopg.rows import dict_row
@@ -72,12 +72,28 @@ def _rabbitmq_base() -> str:
     return os.getenv("RABBITMQ_MGMT_URL", "http://rabbitmq_rabbitmq:15672").rstrip("/")
 
 
-def _rabbitmq_vhost_encoded() -> str:
-    """Return URL-encoded RabbitMQ vhost for management API routes."""
-    vhost = os.getenv("RABBITMQ_MGMT_VHOST", "/")
-    if not vhost:
-        vhost = "/"
-    return quote(vhost, safe="")
+def _rabbitmq_vhost_candidates() -> list[str]:
+    """Return candidate RabbitMQ vhosts from env and AMQP URI."""
+    candidates: list[str] = []
+
+    configured = (os.getenv("RABBITMQ_MGMT_VHOST") or "").strip()
+    if configured:
+        candidates.append(configured)
+
+    amqp_uri = (os.getenv("RABBITMQ_URI") or os.getenv("RABBITMQ_URL") or "").strip()
+    if amqp_uri:
+        parsed = urlparse(amqp_uri)
+        if parsed.path and parsed.path != "/":
+            candidates.append(parsed.path.lstrip("/"))
+
+    candidates.append("/")
+
+    unique: list[str] = []
+    for item in candidates:
+        value = item or "/"
+        if value not in unique:
+            unique.append(value)
+    return unique
 
 
 def _safe_request(url: str, headers: dict[str, str] | None = None, auth: tuple[str, str] | None = None) -> Any:
@@ -150,15 +166,16 @@ def get_quality() -> dict[str, Any]:
     }
 
 
-def _queue_snapshot(queue_name: str) -> dict[str, Any]:
+def _queue_snapshot(queue_name: str, vhost: str) -> dict[str, Any]:
     base = _rabbitmq_base()
-    vhost = _rabbitmq_vhost_encoded()
-    url = f"{base}/api/queues/{vhost}/{queue_name}"
+    encoded_vhost = quote(vhost or "/", safe="")
+    url = f"{base}/api/queues/{encoded_vhost}/{queue_name}"
     data = _safe_request(url, auth=_rabbitmq_auth())
     if not isinstance(data, dict):
         raise ValueError("Resposta invalida")
     return {
         "name": queue_name,
+        "vhost": vhost,
         "messages": int(data.get("messages", 0)),
         "messages_ready": int(data.get("messages_ready", 0)),
         "messages_unacknowledged": int(data.get("messages_unacknowledged", 0)),
@@ -168,18 +185,23 @@ def _queue_snapshot(queue_name: str) -> dict[str, Any]:
 
 
 def _queue_snapshot_safe(queue_name: str) -> dict[str, Any]:
-    try:
-        return _queue_snapshot(queue_name)
-    except Exception as exc:
-        return {
-            "name": queue_name,
-            "error": str(exc),
-            "messages": 0,
-            "messages_ready": 0,
-            "messages_unacknowledged": 0,
-            "consumers": 0,
-            "state": "unavailable",
-        }
+    last_error = "erro desconhecido"
+    for vhost in _rabbitmq_vhost_candidates():
+        try:
+            return _queue_snapshot(queue_name, vhost)
+        except Exception as exc:
+            last_error = f"vhost={vhost}: {exc}"
+
+    return {
+        "name": queue_name,
+        "vhost": "N/A",
+        "error": last_error,
+        "messages": 0,
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "state": "unavailable",
+    }
 
 
 def get_queues() -> dict[str, Any]:
