@@ -13,10 +13,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
-from src.agent.agents.agendamento import DEFAULT_PROMPT_AGENDAMENTO
-from src.agent.agents.sdr_anuncios import DEFAULT_PROMPT_ANUNCIOS
-from src.agent.agents.sdr_frios import DEFAULT_PROMPT_FRIOS
-from src.agent.agents.sdr_quentes import DEFAULT_PROMPT_QUENTES
 from src.agent.db import prompt_repo
 from src.agent.prompts.runtime import invalidate_prompt_cache
 from src.dashboard_app.auth import (
@@ -38,10 +34,10 @@ STATIC_DIR = BASE_DIR / "static"
 SESSION_COOKIE_NAME = "sdr_dashboard_session"
 
 DEFAULT_PROMPTS = {
-    "sdr_frios": DEFAULT_PROMPT_FRIOS,
-    "sdr_quentes": DEFAULT_PROMPT_QUENTES,
-    "sdr_anuncios": DEFAULT_PROMPT_ANUNCIOS,
-    "sdr_agendamento": DEFAULT_PROMPT_AGENDAMENTO,
+    "sdr_frios": "Voce e o SDR de leads frios. Qualifique e conduza para agendamento com clareza.",
+    "sdr_quentes": "Voce e o SDR de leads quentes. Atenda rapido e direcione para proximo passo.",
+    "sdr_anuncios": "Voce e o SDR de leads de anuncios. Conecte interesse ao agendamento objetivo.",
+    "sdr_agendamento": "Voce e o especialista de agendamento. Confirme dados e finalize o agendamento.",
 }
 
 

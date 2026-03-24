@@ -8,7 +8,7 @@ from typing import Any
 
 from psycopg.rows import dict_row
 
-from agent.db.connection import get_connection
+from src.agent.db.connection import get_connection
 
 
 @dataclass(frozen=True)

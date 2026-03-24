@@ -6,7 +6,7 @@ import os
 import time
 from threading import Lock
 
-from agent.db.prompt_repo import ensure_prompt_exists, get_published_prompt
+from src.agent.db.prompt_repo import ensure_prompt_exists, get_published_prompt
 
 _CACHE: dict[str, tuple[float, str]] = {}
 _LOCK = Lock()
