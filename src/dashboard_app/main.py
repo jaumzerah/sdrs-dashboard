@@ -109,7 +109,11 @@ def health() -> dict[str, str]:
 
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse("login.html", {"request": request})
+    return templates.TemplateResponse(
+        request=request,
+        name="login.html",
+        context={"request": request},
+    )
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -117,7 +121,11 @@ def dashboard_page(request: Request) -> Response:
     session = parse_cookie_value(request.cookies.get(SESSION_COOKIE_NAME))
     if not session:
         return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
-    return templates.TemplateResponse("dashboard.html", {"request": request, "username": session.username})
+    return templates.TemplateResponse(
+        request=request,
+        name="dashboard.html",
+        context={"request": request, "username": session.username},
+    )
 
 
 @app.post("/api/auth/login")
