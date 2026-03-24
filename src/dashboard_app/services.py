@@ -10,11 +10,54 @@ import requests
 from psycopg.rows import dict_row
 
 from src.agent.db.connection import get_connection
-from src.agent.db.metricas_repo import (
-    alertas_recentes,
-    nota_media_por_sdr,
-    taxa_aprovacao_primeira_tentativa_por_sdr,
-)
+
+
+def _nota_media_por_sdr() -> dict[str, float]:
+    query = """
+        SELECT sdr_origem, ROUND(AVG(nota)::numeric, 2) AS media
+        FROM avaliacao_log
+        GROUP BY sdr_origem
+        ORDER BY sdr_origem
+    """
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(query)
+            rows = cur.fetchall()
+    return {str(row["sdr_origem"]): float(row["media"]) for row in rows} if rows else {}
+
+
+def _taxa_aprovacao_primeira_tentativa_por_sdr() -> dict[str, float]:
+    query = """
+        SELECT
+          sdr_origem,
+          ROUND(
+            COUNT(*) FILTER (WHERE tentativas = 1 AND aprovado = true)::numeric
+            / NULLIF(COUNT(*), 0) * 100, 1
+          ) AS taxa
+        FROM avaliacao_log
+        GROUP BY sdr_origem
+        ORDER BY sdr_origem
+    """
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(query)
+            rows = cur.fetchall()
+    return {str(row["sdr_origem"]): float(row["taxa"] or 0.0) for row in rows} if rows else {}
+
+
+def _alertas_recentes(limite: int = 20) -> list[dict[str, Any]]:
+    query = """
+        SELECT id, lead_id, sdr_origem, nota, tentativas, criado_em
+        FROM avaliacao_log
+        WHERE aprovado = false AND tentativas >= 3
+        ORDER BY criado_em DESC
+        LIMIT %(limite)s
+    """
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(query, {"limite": int(limite)})
+            rows = cur.fetchall()
+    return [dict(row) for row in rows] if rows else []
 
 
 def _rabbitmq_auth() -> tuple[str, str]:
@@ -83,11 +126,11 @@ def get_overview() -> dict[str, Any]:
 
 
 def get_quality() -> dict[str, Any]:
-    """Build quality payload from existing metrics repositories."""
+    """Build quality payload for SDR scorecards and alerts."""
     return {
-        "nota_media_por_sdr": nota_media_por_sdr(),
-        "taxa_aprovacao_primeira_tentativa_por_sdr": taxa_aprovacao_primeira_tentativa_por_sdr(),
-        "alertas_recentes": alertas_recentes(limite=20),
+        "nota_media_por_sdr": _nota_media_por_sdr(),
+        "taxa_aprovacao_primeira_tentativa_por_sdr": _taxa_aprovacao_primeira_tentativa_por_sdr(),
+        "alertas_recentes": _alertas_recentes(limite=20),
     }
 
 
