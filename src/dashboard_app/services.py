@@ -8,6 +8,7 @@ from typing import Any
 
 import requests
 from psycopg.rows import dict_row
+from requests.exceptions import SSLError
 
 from src.agent.db.connection import get_connection
 
@@ -70,13 +71,19 @@ def _rabbitmq_base() -> str:
     return os.getenv("RABBITMQ_MGMT_URL", "http://rabbitmq_rabbitmq:15672").rstrip("/")
 
 
-def _safe_request(url: str, headers: dict[str, str] | None = None, auth: tuple[str, str] | None = None) -> dict[str, Any]:
-    response = requests.get(url, headers=headers or {}, auth=auth, timeout=10)
-    response.raise_for_status()
-    data: Any = response.json()
-    if not isinstance(data, dict):
-        raise ValueError("Resposta invalida")
-    return data
+def _safe_request(url: str, headers: dict[str, str] | None = None, auth: tuple[str, str] | None = None) -> Any:
+    """GET JSON with internal HTTPS->HTTP fallback for service DNS names."""
+    try:
+        response = requests.get(url, headers=headers or {}, auth=auth, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except SSLError:
+        if not url.startswith("https://"):
+            raise
+        fallback_url = "http://" + url[len("https://") :]
+        response = requests.get(fallback_url, headers=headers or {}, auth=auth, timeout=10)
+        response.raise_for_status()
+        return response.json()
 
 
 def get_overview() -> dict[str, Any]:
@@ -138,6 +145,8 @@ def _queue_snapshot(queue_name: str) -> dict[str, Any]:
     base = _rabbitmq_base()
     url = f"{base}/api/queues/%2F/{queue_name}"
     data = _safe_request(url, auth=_rabbitmq_auth())
+    if not isinstance(data, dict):
+        raise ValueError("Resposta invalida")
     return {
         "name": queue_name,
         "messages": int(data.get("messages", 0)),
@@ -194,6 +203,8 @@ def get_integrations() -> dict[str, Any]:
     # Rabbit management API
     try:
         overview = _safe_request(f"{_rabbitmq_base()}/api/overview", auth=_rabbitmq_auth())
+        if not isinstance(overview, dict):
+            raise ValueError("Resposta invalida")
         checks.append(
             {
                 "name": "rabbitmq",
@@ -209,10 +220,12 @@ def get_integrations() -> dict[str, Any]:
     chatwoot_token = os.getenv("CHATWOOT_API_TOKEN", "")
     if chatwoot_url and chatwoot_token:
         try:
-            _safe_request(
+            profile = _safe_request(
                 f"{chatwoot_url}/api/v1/profile",
                 headers={"api_access_token": chatwoot_token},
             )
+            if not isinstance(profile, dict):
+                raise ValueError("Resposta invalida")
             checks.append({"name": "chatwoot", "ok": True, "detail": "conectado"})
         except Exception as exc:
             checks.append({"name": "chatwoot", "ok": False, "detail": str(exc)})
@@ -224,10 +237,12 @@ def get_integrations() -> dict[str, Any]:
     evolution_api_key = os.getenv("EVOLUTION_API_KEY", "")
     if evolution_url and evolution_api_key:
         try:
-            _safe_request(
+            payload = _safe_request(
                 f"{evolution_url}/instance/fetchInstances",
                 headers={"apikey": evolution_api_key},
             )
+            if not isinstance(payload, (dict, list)):
+                raise ValueError("Resposta invalida")
             checks.append({"name": "evolution", "ok": True, "detail": "conectado"})
         except Exception as exc:
             checks.append({"name": "evolution", "ok": False, "detail": str(exc)})
