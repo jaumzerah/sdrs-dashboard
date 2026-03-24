@@ -6,9 +6,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-from agent.db.connection import get_connection, init_db
-from agent.db.disparos_repo import registrar_disparo
-from agent.db.leads_repo import buscar_lead, criar_lead
+from .connection import get_connection, init_db
+from .disparos_repo import registrar_disparo
+from .leads_repo import buscar_lead, criar_lead
 
 SEED_JSON_PATH = Path(__file__).resolve().parents[3] / "data" / "leads_disparados.json"
 

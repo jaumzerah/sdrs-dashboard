@@ -6,7 +6,7 @@ from typing import Any
 
 from psycopg.rows import dict_row
 
-from agent.db.connection import get_connection
+from .connection import get_connection
 
 
 def registrar_disparo(
