@@ -1,6 +1,6 @@
 """Prompt templates per SDR persona."""
 
-from agent.prompts.sdr import (
+from .sdr import (
     SDR_ANUNCIOS_PROMPT,
     SDR_FRIOS_PROMPT,
     SDR_QUENTES_PROMPT,
