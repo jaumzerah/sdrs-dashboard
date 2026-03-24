@@ -96,6 +96,21 @@ def _rabbitmq_vhost_candidates() -> list[str]:
     return unique
 
 
+def _queue_names() -> list[str]:
+    """Return queue names from env or defaults."""
+    raw = (os.getenv("RABBITMQ_QUEUE_NAMES") or "").strip()
+    if raw:
+        names = [item.strip() for item in raw.split(",") if item.strip()]
+        if names:
+            return names
+    return [
+        "leads_entrada",
+        "leads_disparo",
+        "leads_entrada.dlq",
+        "leads_disparo.dlq",
+    ]
+
+
 def _safe_request(url: str, headers: dict[str, str] | None = None, auth: tuple[str, str] | None = None) -> Any:
     """GET JSON with internal HTTPS->HTTP fallback for service DNS names."""
     try:
@@ -206,12 +221,7 @@ def _queue_snapshot_safe(queue_name: str) -> dict[str, Any]:
 
 def get_queues() -> dict[str, Any]:
     """Return queue metrics from RabbitMQ management API."""
-    queue_names = [
-        "leads_entrada",
-        "leads_disparo",
-        "leads_entrada.dlq",
-        "leads_disparo.dlq",
-    ]
+    queue_names = _queue_names()
     return {
         "timestamp": datetime.now(UTC).isoformat(),
         "queues": [_queue_snapshot_safe(name) for name in queue_names],

@@ -22,6 +22,7 @@ services:
       - RABBITMQ_MGMT_USER=guest
       - RABBITMQ_MGMT_PASS=guest
       - RABBITMQ_MGMT_VHOST=/
+      - RABBITMQ_QUEUE_NAMES=leads_entrada,leads_disparo,leads_entrada.dlq,leads_disparo.dlq
 
       - CHATWOOT_URL=http://chatwoot_api:3000
       - CHATWOOT_API_TOKEN=
