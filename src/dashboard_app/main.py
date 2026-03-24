@@ -13,19 +13,19 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
-from agent.agents.agendamento import DEFAULT_PROMPT_AGENDAMENTO
-from agent.agents.sdr_anuncios import DEFAULT_PROMPT_ANUNCIOS
-from agent.agents.sdr_frios import DEFAULT_PROMPT_FRIOS
-from agent.agents.sdr_quentes import DEFAULT_PROMPT_QUENTES
-from agent.db import prompt_repo
-from agent.prompts.runtime import invalidate_prompt_cache
-from dashboard_app.auth import (
+from src.agent.agents.agendamento import DEFAULT_PROMPT_AGENDAMENTO
+from src.agent.agents.sdr_anuncios import DEFAULT_PROMPT_ANUNCIOS
+from src.agent.agents.sdr_frios import DEFAULT_PROMPT_FRIOS
+from src.agent.agents.sdr_quentes import DEFAULT_PROMPT_QUENTES
+from src.agent.db import prompt_repo
+from src.agent.prompts.runtime import invalidate_prompt_cache
+from src.dashboard_app.auth import (
     AuthSession,
     issue_cookie_value,
     parse_cookie_value,
     validate_credentials,
 )
-from dashboard_app.services import (
+from src.dashboard_app.services import (
     get_integrations,
     get_overview,
     get_quality,

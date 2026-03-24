@@ -9,8 +9,8 @@ from typing import Any
 import requests
 from psycopg.rows import dict_row
 
-from agent.db.connection import get_connection
-from agent.db.metricas_repo import (
+from src.agent.db.connection import get_connection
+from src.agent.db.metricas_repo import (
     alertas_recentes,
     nota_media_por_sdr,
     taxa_aprovacao_primeira_tentativa_por_sdr,

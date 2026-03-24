@@ -4,7 +4,7 @@ services:
   sdr_dashboard:
     image: sdr-dashboard:latest
     hostname: "{{.Service.Name}}.{{.Task.Slot}}"
-    command: python -m dashboard_app.main
+    command: python -m src.dashboard_app.main
     networks:
       - SimplifiqueNet
     environment:
