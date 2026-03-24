@@ -1,0 +1,60 @@
+version: "3.7"
+
+services:
+  sdr_dashboard:
+    image: sdr-dashboard:latest
+    hostname: "{{.Service.Name}}.{{.Task.Slot}}"
+    command: python -m dashboard_app.main
+    networks:
+      - SimplifiqueNet
+    environment:
+      - DASHBOARD_PORT=3000
+      - DASHBOARD_ADMIN_USER=admin
+      - DASHBOARD_ADMIN_PASSWORD=
+      - DASHBOARD_SESSION_SECRET=
+      - DASHBOARD_SESSION_TTL_SECONDS=28800
+      - DASHBOARD_COOKIE_SECURE=true
+      - PROMPT_CACHE_TTL_SECONDS=10
+
+      # Dependencias
+      - DATABASE_URL=
+      - RABBITMQ_MGMT_URL=http://rabbitmq_rabbitmq:15672
+      - RABBITMQ_MGMT_USER=guest
+      - RABBITMQ_MGMT_PASS=guest
+
+      - CHATWOOT_URL=http://chatwoot_api:3000
+      - CHATWOOT_API_TOKEN=
+      - CHATWOOT_ACCOUNT_ID=1
+
+      - EVOLUTION_API_URL=http://evolution_v2:8080
+      - EVOLUTION_API_KEY=
+      - EVOLUTION_INSTANCE=SimplifiqueNet
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=SimplifiqueNet
+        - traefik.http.routers.sdr_dashboard.rule=Host(`sdrs.agenciasimplifique.com.br`)
+        - traefik.http.routers.sdr_dashboard.entrypoints=websecure
+        - traefik.http.routers.sdr_dashboard.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.sdr_dashboard.service=sdr_dashboard
+        - traefik.http.services.sdr_dashboard.loadbalancer.server.port=3000
+        - traefik.http.services.sdr_dashboard.loadbalancer.passHostHeader=true
+      update_config:
+        parallelism: 1
+        delay: 30s
+        order: start-first
+        failure_action: rollback
+
+networks:
+  SimplifiqueNet:
+    external: true
+    name: SimplifiqueNet

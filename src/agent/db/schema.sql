@@ -53,3 +53,33 @@ CREATE TABLE IF NOT EXISTS avaliacao_log (
     aprovado BOOLEAN NOT NULL,
     criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS prompt_versions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    prompt_key TEXT NOT NULL,
+    version INT NOT NULL,
+    content TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'draft',
+    created_by TEXT NOT NULL DEFAULT 'system',
+    notes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    published_at TIMESTAMPTZ,
+    rollback_of INT,
+    UNIQUE (prompt_key, version)
+);
+
+CREATE INDEX IF NOT EXISTS idx_prompt_versions_key_created ON prompt_versions(prompt_key, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_prompt_versions_key_status ON prompt_versions(prompt_key, status);
+
+CREATE TABLE IF NOT EXISTS prompt_audit_log (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    prompt_key TEXT NOT NULL,
+    action TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    from_version INT,
+    to_version INT,
+    reason TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_prompt_audit_key_created ON prompt_audit_log(prompt_key, created_at DESC);

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SDR Ops Dashboard</title>
+  <link rel="stylesheet" href="/static/dashboard.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>SDR Ops Control</h1>
+      <p>Monitoramento, integracoes e Prompt Studio</p>
+    </div>
+    <div class="topbar-actions">
+      <span id="current-user">{{ username }}</span>
+      <button id="logout-btn" class="secondary">Sair</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel" id="overview-panel">
+      <h2>Resumo Operacional</h2>
+      <div class="grid-6" id="overview-grid"></div>
+    </section>
+
+    <section class="panel" id="queues-panel">
+      <h2>Filas RabbitMQ</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Fila</th>
+            <th>Msgs</th>
+            <th>Ready</th>
+            <th>Unacked</th>
+            <th>Consumers</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="queues-table"></tbody>
+      </table>
+    </section>
+
+    <section class="panel" id="quality-panel">
+      <h2>Qualidade SDR</h2>
+      <div class="grid-2">
+        <div>
+          <h3>Nota media por SDR</h3>
+          <ul id="quality-nota"></ul>
+        </div>
+        <div>
+          <h3>Aprovacao 1a tentativa</h3>
+          <ul id="quality-taxa"></ul>
+        </div>
+      </div>
+      <h3>Alertas recentes</h3>
+      <ul id="quality-alertas"></ul>
+    </section>
+
+    <section class="panel" id="integrations-panel">
+      <h2>Integracoes</h2>
+      <ul id="integrations-list"></ul>
+    </section>
+
+    <section class="panel" id="prompts-panel">
+      <h2>Prompt Studio</h2>
+      <div class="grid-2">
+        <div>
+          <label>Prompt</label>
+          <select id="prompt-key"></select>
+          <label>Nova versao (draft)</label>
+          <textarea id="prompt-content" rows="14"></textarea>
+          <label>Notas</label>
+          <input id="prompt-notes" type="text" placeholder="ex: ajuste CTA reuniao" />
+          <button id="save-draft-btn">Salvar draft</button>
+        </div>
+        <div>
+          <h3>Versoes</h3>
+          <ul id="prompt-versions"></ul>
+          <div class="action-row">
+            <input id="publish-version" type="number" min="1" placeholder="versao" />
+            <button id="publish-btn">Publish</button>
+          </div>
+          <div class="action-row">
+            <input id="rollback-version" type="number" min="1" placeholder="rollback para" />
+            <button id="rollback-btn" class="secondary">Rollback</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/dashboard.js"></script>
+</body>
+</html>

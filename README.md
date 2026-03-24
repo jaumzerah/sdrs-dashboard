@@ -86,62 +86,49 @@ Sem essas variaveis, o diagnostico vai marcar Evolution/Chatwoot como indisponiv
 
 ## Deploy em producao
 
-### Setup inicial da VPS (executar uma unica vez)
-
 ```bash
-# 1. Adicionar usuario debian ao grupo docker
-#    OBRIGATORIO — sem isso o CI/CD falha
-sudo usermod -aG docker debian
-# Fazer logout e login novamente para o grupo ser aplicado
-# Verificar: groups | grep docker
+# Pre-requisito: SimplifiqueNet deve existir e estar
+# com os servicos dependentes rodando
+# Verificar: docker service ls
 
-# 2. Criar diretorio do projeto
-sudo mkdir -p /opt/sdr-agents
-sudo chown debian:debian /opt/sdr-agents
-
-# 3. Clonar o repositorio
-cd /opt
-git clone <URL_DO_REPOSITORIO> sdr-agents
-
-# 4. Criar o .env de producao
+# Build da imagem (primeira vez e apos alteracoes)
 cd /opt/sdr-agents
-cp .env.example .env
-nano .env  # preencher com valores reais de producao
+docker build -t sdr-agents:latest .
 
-# 5. Garantir que Docker reinicia apos reboot da VPS
-sudo systemctl enable docker
+# Carregar variaveis e fazer deploy
+set -a && source .env && set +a
+docker stack deploy -c docker-stack.sdr.yml sdr-agents
 
-# 6. Subir o stack pela primeira vez
-docker compose -f docker-compose.prod.yml up -d
+# Verificar servicos
+docker stack ps sdr-agents
 
-# 7. Verificar se os 4 servicos subiram
-docker compose -f docker-compose.prod.yml ps
+# Para atualizar apos push no GitHub:
+bash scripts/deploy.sh
 ```
 
-### Secrets necessarios no GitHub Actions
+## Dashboard SDR (servico separado)
 
-Configurar em Settings -> Secrets and variables -> Actions:
+Foi adicionada uma dashboard operacional separada com login/senha proprios, observabilidade de filas/integracoes e Prompt Studio com `draft`, `publish` e `rollback`.
 
-- `VPS_HOST`      # IP ou dominio da VPS
-- `VPS_USER`      # debian
-- `VPS_SSH_KEY`   # conteudo da chave privada SSH dedicada ao deploy
+- App: `src/dashboard_app/`
+- Stack Swarm: `docker-stack.dashboard.yml`
+- Dominio: `sdrs.agenciasimplifique.com.br`
 
-Gerar par de chaves SSH dedicado para o deploy
-(nao reutilizar chave pessoal):
+### Variaveis minimas da dashboard
+
+- `DASHBOARD_ADMIN_USER`
+- `DASHBOARD_ADMIN_PASSWORD`
+- `DASHBOARD_SESSION_SECRET`
+- `DATABASE_URL`
+- `RABBITMQ_MGMT_URL`, `RABBITMQ_MGMT_USER`, `RABBITMQ_MGMT_PASS`
+- `CHATWOOT_URL`, `CHATWOOT_API_TOKEN`
+- `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`
+
+### Deploy da dashboard
 
 ```bash
-ssh-keygen -t ed25519 -C "deploy@sdr-agents" -f ~/.ssh/sdr_deploy
+cd /opt/sdr-agents
+docker build -t sdr-dashboard:latest .
+docker stack deploy -c docker-stack.dashboard.yml sdr-dashboard
+docker stack ps sdr-dashboard
 ```
-
-Adicionar `~/.ssh/sdr_deploy.pub` ao `~/.ssh/authorized_keys` da VPS.
-Cadastrar conteudo de `~/.ssh/sdr_deploy` no secret `VPS_SSH_KEY`.
-
-### Fluxo apos setup
-
-Todo push na branch `main`:
-
-1. Testes rodam no GitHub Actions
-2. Se passar: `deploy.sh` executa na VPS via SSH
-3. Se falhar: deploy e bloqueado automaticamente
-
-NUNCA commitar o `.env` real no repositorio.

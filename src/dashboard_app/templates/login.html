@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SDR Ops Login</title>
+  <link rel="stylesheet" href="/static/dashboard.css" />
+</head>
+<body class="login-body">
+  <main class="login-shell">
+    <section class="login-card">
+      <h1>SDR Ops</h1>
+      <p>Entre para gerenciar operacao, qualidade e prompts.</p>
+      <form id="login-form">
+        <label>Usuario</label>
+        <input type="text" name="username" required autocomplete="username" />
+        <label>Senha</label>
+        <input type="password" name="password" required autocomplete="current-password" />
+        <button type="submit">Entrar</button>
+      </form>
+      <p id="login-error" class="error"></p>
+    </section>
+  </main>
+
+  <script>
+    const form = document.getElementById('login-form');
+    const error = document.getElementById('login-error');
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      error.textContent = '';
+      const payload = {
+        username: form.username.value,
+        password: form.password.value,
+      };
+
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        error.textContent = 'Credenciais invalidas';
+        return;
+      }
+
+      window.location.href = '/';
+    });
+  </script>
+</body>
+</html>

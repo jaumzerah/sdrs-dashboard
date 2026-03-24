@@ -1,0 +1,197 @@
+"""Data services for dashboard endpoints."""
+
+from __future__ import annotations
+
+import os
+from datetime import UTC, datetime
+from typing import Any
+
+import requests
+from psycopg.rows import dict_row
+
+from agent.db.connection import get_connection
+from agent.db.metricas_repo import (
+    alertas_recentes,
+    nota_media_por_sdr,
+    taxa_aprovacao_primeira_tentativa_por_sdr,
+)
+
+
+def _rabbitmq_auth() -> tuple[str, str]:
+    user = os.getenv("RABBITMQ_MGMT_USER", "guest")
+    password = os.getenv("RABBITMQ_MGMT_PASS", "guest")
+    return user, password
+
+
+def _rabbitmq_base() -> str:
+    return os.getenv("RABBITMQ_MGMT_URL", "http://rabbitmq_rabbitmq:15672").rstrip("/")
+
+
+def _safe_request(url: str, headers: dict[str, str] | None = None, auth: tuple[str, str] | None = None) -> dict[str, Any]:
+    response = requests.get(url, headers=headers or {}, auth=auth, timeout=10)
+    response.raise_for_status()
+    data: Any = response.json()
+    if not isinstance(data, dict):
+        raise ValueError("Resposta invalida")
+    return data
+
+
+def get_overview() -> dict[str, Any]:
+    """Build high-level dashboard overview from Postgres."""
+    now = datetime.now(UTC)
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute("SELECT COUNT(*) AS total FROM leads")
+            leads_total = int((cur.fetchone() or {}).get("total", 0))
+
+            cur.execute("SELECT COUNT(*) AS total FROM leads WHERE criado_em >= NOW() - INTERVAL '24 hours'")
+            leads_24h = int((cur.fetchone() or {}).get("total", 0))
+
+            cur.execute("SELECT COUNT(*) AS total FROM disparos WHERE disparado_em >= NOW() - INTERVAL '24 hours'")
+            disparos_24h = int((cur.fetchone() or {}).get("total", 0))
+
+            cur.execute("SELECT COUNT(*) AS total FROM agendamentos WHERE criado_em >= NOW() - INTERVAL '24 hours'")
+            agendamentos_24h = int((cur.fetchone() or {}).get("total", 0))
+
+            cur.execute(
+                """
+                SELECT ROUND(AVG(nota)::numeric, 2) AS media
+                FROM avaliacao_log
+                WHERE criado_em >= NOW() - INTERVAL '7 days'
+                """
+            )
+            nota_media_7d = float((cur.fetchone() or {}).get("media") or 0.0)
+
+            cur.execute(
+                """
+                SELECT COUNT(*) AS total
+                FROM avaliacao_log
+                WHERE aprovado = false AND tentativas >= 3 AND criado_em >= NOW() - INTERVAL '7 days'
+                """
+            )
+            alertas_7d = int((cur.fetchone() or {}).get("total", 0))
+
+    return {
+        "timestamp": now.isoformat(),
+        "leads_total": leads_total,
+        "leads_24h": leads_24h,
+        "disparos_24h": disparos_24h,
+        "agendamentos_24h": agendamentos_24h,
+        "nota_media_7d": nota_media_7d,
+        "alertas_7d": alertas_7d,
+    }
+
+
+def get_quality() -> dict[str, Any]:
+    """Build quality payload from existing metrics repositories."""
+    return {
+        "nota_media_por_sdr": nota_media_por_sdr(),
+        "taxa_aprovacao_primeira_tentativa_por_sdr": taxa_aprovacao_primeira_tentativa_por_sdr(),
+        "alertas_recentes": alertas_recentes(limite=20),
+    }
+
+
+def _queue_snapshot(queue_name: str) -> dict[str, Any]:
+    base = _rabbitmq_base()
+    url = f"{base}/api/queues/%2F/{queue_name}"
+    data = _safe_request(url, auth=_rabbitmq_auth())
+    return {
+        "name": queue_name,
+        "messages": int(data.get("messages", 0)),
+        "messages_ready": int(data.get("messages_ready", 0)),
+        "messages_unacknowledged": int(data.get("messages_unacknowledged", 0)),
+        "consumers": int(data.get("consumers", 0)),
+        "state": str(data.get("state", "unknown")),
+    }
+
+
+def _queue_snapshot_safe(queue_name: str) -> dict[str, Any]:
+    try:
+        return _queue_snapshot(queue_name)
+    except Exception as exc:
+        return {
+            "name": queue_name,
+            "error": str(exc),
+            "messages": 0,
+            "messages_ready": 0,
+            "messages_unacknowledged": 0,
+            "consumers": 0,
+            "state": "unavailable",
+        }
+
+
+def get_queues() -> dict[str, Any]:
+    """Return queue metrics from RabbitMQ management API."""
+    queue_names = [
+        "leads_entrada",
+        "leads_disparo",
+        "leads_entrada.dlq",
+        "leads_disparo.dlq",
+    ]
+    return {
+        "timestamp": datetime.now(UTC).isoformat(),
+        "queues": [_queue_snapshot_safe(name) for name in queue_names],
+    }
+
+
+def get_integrations() -> dict[str, Any]:
+    """Return integration health summary."""
+    checks: list[dict[str, Any]] = []
+
+    # Database
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1")
+                cur.fetchone()
+        checks.append({"name": "postgres", "ok": True, "detail": "conectado"})
+    except Exception as exc:
+        checks.append({"name": "postgres", "ok": False, "detail": str(exc)})
+
+    # Rabbit management API
+    try:
+        overview = _safe_request(f"{_rabbitmq_base()}/api/overview", auth=_rabbitmq_auth())
+        checks.append(
+            {
+                "name": "rabbitmq",
+                "ok": True,
+                "detail": f"cluster {overview.get('cluster_name', 'N/A')}",
+            }
+        )
+    except Exception as exc:
+        checks.append({"name": "rabbitmq", "ok": False, "detail": str(exc)})
+
+    # Chatwoot
+    chatwoot_url = os.getenv("CHATWOOT_URL", "").rstrip("/")
+    chatwoot_token = os.getenv("CHATWOOT_API_TOKEN", "")
+    if chatwoot_url and chatwoot_token:
+        try:
+            _safe_request(
+                f"{chatwoot_url}/api/v1/profile",
+                headers={"api_access_token": chatwoot_token},
+            )
+            checks.append({"name": "chatwoot", "ok": True, "detail": "conectado"})
+        except Exception as exc:
+            checks.append({"name": "chatwoot", "ok": False, "detail": str(exc)})
+    else:
+        checks.append({"name": "chatwoot", "ok": False, "detail": "nao configurado"})
+
+    # Evolution
+    evolution_url = os.getenv("EVOLUTION_API_URL", "").rstrip("/")
+    evolution_api_key = os.getenv("EVOLUTION_API_KEY", "")
+    if evolution_url and evolution_api_key:
+        try:
+            _safe_request(
+                f"{evolution_url}/instance/fetchInstances",
+                headers={"apikey": evolution_api_key},
+            )
+            checks.append({"name": "evolution", "ok": True, "detail": "conectado"})
+        except Exception as exc:
+            checks.append({"name": "evolution", "ok": False, "detail": str(exc)})
+    else:
+        checks.append({"name": "evolution", "ok": False, "detail": "nao configurado"})
+
+    return {
+        "timestamp": datetime.now(UTC).isoformat(),
+        "checks": checks,
+    }

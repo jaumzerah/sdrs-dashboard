@@ -9,21 +9,12 @@ from langchain_core.messages import SystemMessage
 from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
 
+from agent.prompts.runtime import get_prompt_content
+
 OWNER_NAME = os.getenv("OWNER_NAME", "João Andrade")
 BRAND_NAME = os.getenv("BRAND_NAME", "nossa empresa")
 
-
-@tool
-def qualificar_lead_anuncio(pergunta: str) -> str:
-    """Retorna uma sugestao de qualificacao para lead de anuncio."""
-    return f"Sugestao para lead de anuncio: {pergunta}"
-
-
-def build_prompt_anuncios(state: dict[str, Any]) -> list[SystemMessage]:
-    del state
-    return [
-        SystemMessage(
-            content=f"""Você é Andreia, assistente de {OWNER_NAME}, especialista em automação para o setor de móveis planejados com 14 anos de experiência no segmento.
+DEFAULT_PROMPT_ANUNCIOS = """Você é Andreia, assistente de {OWNER_NAME}, especialista em automação para o setor de móveis planejados com 14 anos de experiência no segmento.
 
 Este lead clicou em um anúncio de {BRAND_NAME}. Pode ter interesse genuíno ou apenas curiosidade. Seu objetivo é conectar a promessa do anúncio com uma reunião virtual gratuita de diagnóstico de 15 a 20 minutos com {OWNER_NAME}.
 
@@ -48,6 +39,25 @@ Aguarde cada resposta antes de prosseguir.
 PASSO 3 — Plot twist (executar somente após receber o feedback):
 Envie exatamente: "Obrigada pelo feedback! Posso te contar uma coisa? Você acabou de ser atendida por um agente SDR — exatamente como os que João Andrade implementa para lojas de móveis planejados. O sistema que agendou sua reunião é o próprio produto que será apresentado a você na reunião. Até lá! 🚀"
 """
+
+
+@tool
+def qualificar_lead_anuncio(pergunta: str) -> str:
+    """Retorna uma sugestao de qualificacao para lead de anuncio."""
+    return f"Sugestao para lead de anuncio: {pergunta}"
+
+
+def build_prompt_anuncios(state: dict[str, Any]) -> list[SystemMessage]:
+    """Build the system prompt for paid-media leads."""
+    del state
+    content = get_prompt_content(
+        prompt_key="sdr_anuncios",
+        fallback_content=DEFAULT_PROMPT_ANUNCIOS,
+        variables={"OWNER_NAME": OWNER_NAME, "BRAND_NAME": BRAND_NAME},
+    )
+    return [
+        SystemMessage(
+            content=content
         )
     ]
 
